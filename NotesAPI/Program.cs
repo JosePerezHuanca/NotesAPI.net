@@ -1,3 +1,6 @@
+using Microsoft.EntityFrameworkCore;
+using NotesAPI.Data;
+using DotNetEnv;
 
 namespace NotesAPI
 {
@@ -6,9 +9,14 @@ namespace NotesAPI
         public static void Main(string[] args)
         {
             var builder = WebApplication.CreateBuilder(args);
+            Env.Load();
 
             // Add services to the container.
-
+            builder.Services.AddDbContext<NoteContext>(options =>
+            {
+                options.UseMySQL(Environment.GetEnvironmentVariable("CONNECTION_STRING"));
+            }
+            );
             builder.Services.AddControllers();
             // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
             builder.Services.AddEndpointsApiExplorer();
