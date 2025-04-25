@@ -6,11 +6,11 @@ namespace NotesAPI.Models
     public class Note
     {
         public int Id { get; set; }
-        ['Required']
+        [Required]
         public string Title { get; set; }
-        ['Required']
+        [Required]
         public string Content { get; set; }
-        ['Required']
+        [Required]
         public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
     }
