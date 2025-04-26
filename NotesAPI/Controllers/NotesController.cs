@@ -33,5 +33,46 @@ namespace NotesAPI.Controllers
             }
             return Ok(note);
         }
+
+        [HttpPost]
+        public async Task<IActionResult> PostNote(Note note)
+        {
+            note.CreatedAt=DateTime.Now;
+            _context.Notes.Add(note);
+            await _context.SaveChangesAsync();
+            return CreatedAtAction(nameof(GetNote), new { id = note.Id });
+        }
+
+        [HttpPut("{id}")]
+        public async Task<IActionResult> PutNote(int id, Note note)
+        {
+            if (id != note.Id)
+            {
+                return BadRequest();
+            }
+            var noteQuery = await _context.Notes.FindAsync(id);
+            if (noteQuery == null)
+            {
+                return NotFound();
+            }
+            noteQuery.Title = note.Title;
+            noteQuery.Content = note.Content;
+            noteQuery.UpdatedAt= DateTime.Now;
+            await _context.SaveChangesAsync();
+            return NoContent();
+        }
+
+        [HttpDelete("{id}")]
+        public async Task<IActionResult> DeleteNote(int id)
+        {
+            var note = await _context.Notes.FindAsync(id);
+            if (note == null)
+            {
+                return NotFound();
+            }
+            _context.Notes.Remove(note);
+            await _context.SaveChangesAsync();
+            return NoContent();
+        }
     }
 }
