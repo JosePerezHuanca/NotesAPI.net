@@ -14,7 +14,7 @@ namespace NotesAPI
             // Add services to the container.
             builder.Services.AddDbContext<NoteContext>(options =>
             {
-                options.UseMySQL(Environment.GetEnvironmentVariable("CONNECTION_STRING"));
+                options.UseMySql(Environment.GetEnvironmentVariable("CONNECTION_STRING"), ServerVersion.AutoDetect(Environment.GetEnvironmentVariable("CONNECTION_STRING")));
             }
             );
             builder.Services.AddControllers();
