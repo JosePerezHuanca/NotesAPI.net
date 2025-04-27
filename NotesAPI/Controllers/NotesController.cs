@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using NotesAPI.Data;
 using NotesAPI.Models;
+using NotesAPI.Dto;
 
 namespace NotesAPI.Controllers
 {
@@ -35,25 +36,26 @@ namespace NotesAPI.Controllers
         }
 
         [HttpPost]
-        public async Task<IActionResult> PostNote(Note note)
+        public async Task<IActionResult> PostNote(NoteDto noteDto)
         {
             if (!ModelState.IsValid)
             {
                 return BadRequest(ModelState);
             }
-            note.CreatedAt=DateTime.Now;
+            var note = new Note
+            {
+                Title = noteDto.Title,
+                Content = noteDto.Content,
+                CreatedAt = DateTime.Now
+            };
             _context.Notes.Add(note);
             await _context.SaveChangesAsync();
             return CreatedAtAction(nameof(GetNote), new { id = note.Id }, note);
         }
 
         [HttpPut("{id}")]
-        public async Task<IActionResult> PutNote(int id, Note note)
+        public async Task<IActionResult> PutNote(int id, NoteDto noteDto)
         {
-            if (id != note.Id)
-            {
-                return BadRequest();
-            }
             if (!ModelState.IsValid)
             {
                 return BadRequest(ModelState);
@@ -63,8 +65,8 @@ namespace NotesAPI.Controllers
             {
                 return NotFound();
             }
-            noteQuery.Title = note.Title;
-            noteQuery.Content = note.Content;
+            noteQuery.Title = noteDto.Title;
+            noteQuery.Content = noteDto.Content;
             noteQuery.UpdatedAt= DateTime.Now;
             await _context.SaveChangesAsync();
             return NoContent();
