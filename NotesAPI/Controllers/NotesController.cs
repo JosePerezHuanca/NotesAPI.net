@@ -37,10 +37,14 @@ namespace NotesAPI.Controllers
         [HttpPost]
         public async Task<IActionResult> PostNote(Note note)
         {
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState);
+            }
             note.CreatedAt=DateTime.Now;
             _context.Notes.Add(note);
             await _context.SaveChangesAsync();
-            return CreatedAtAction(nameof(GetNote), new { id = note.Id });
+            return CreatedAtAction(nameof(GetNote), new { id = note.Id }, note);
         }
 
         [HttpPut("{id}")]
@@ -49,6 +53,10 @@ namespace NotesAPI.Controllers
             if (id != note.Id)
             {
                 return BadRequest();
+            }
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState);
             }
             var noteQuery = await _context.Notes.FindAsync(id);
             if (noteQuery == null)
