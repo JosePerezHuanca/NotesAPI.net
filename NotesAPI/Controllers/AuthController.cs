@@ -2,11 +2,13 @@
 using Microsoft.EntityFrameworkCore;
 using NotesAPI.Data;
 using NotesAPI.Models;
+using NotesAPI.Dto;
 using BCrypt.Net;
 using Microsoft.IdentityModel.Tokens;
 using System.Security.Claims;
 using System.Text;
 using System.IdentityModel.Tokens.Jwt;
+using Microsoft.AspNetCore.Authorization;
 
 namespace NotesAPI.Controllers
 {
@@ -20,6 +22,7 @@ namespace NotesAPI.Controllers
             _context = context;
         }
 
+        [Authorize]
         [HttpGet]
         public async Task<IActionResult> GetUsers()
         {
@@ -27,6 +30,7 @@ namespace NotesAPI.Controllers
             return Ok(users);
         }
 
+        [Authorize]
         [HttpGet("{id}")]
         public async Task<IActionResult> GetUser(int id)
         {
@@ -39,34 +43,40 @@ namespace NotesAPI.Controllers
         }
 
         [HttpPost("register")]
-        public async Task<IActionResult> PostRegister(User user)
+        public async Task<IActionResult> PostRegister(RegisterRequest request)
         {
-            var userQuery = await _context.Users.FirstOrDefaultAsync(u=>u.Username == user.Username);
+            var userQuery = await _context.Users.FirstOrDefaultAsync(u=>u.Username == request.Username);
             if (userQuery != null)
             {
                 return Conflict();
             }
-            var passHash = BCrypt.Net.BCrypt.HashPassword(user.Password);
-            user.Password = passHash;
+            var passHash = BCrypt.Net.BCrypt.HashPassword(request.Password);
+            request.Password = passHash;
+            var user = new User
+            {
+                Username = request.Username,
+                Email = request.Email,
+                Password = request.Password,
+            };
             _context.Users.Add(user);
             await _context.SaveChangesAsync();
             return Ok();
         }
 
         [HttpPost("login")]
-        public async Task<IActionResult> PostLogin(User user)
+        public async Task<IActionResult> PostLogin(LoginRequest request)
         {
-            var userQuery = await _context.Users.SingleOrDefaultAsync(u => u.Username == user.Username);
+            var userQuery = await _context.Users.SingleOrDefaultAsync(u => u.Username == request.Username);
             if (userQuery == null)
             {
                 return Unauthorized();
             }
-            bool isValid = BCrypt.Net.BCrypt.Verify(user.Password, userQuery.Password);
+            bool isValid = BCrypt.Net.BCrypt.Verify(request.Password, userQuery.Password);
             if (isValid)
             {
                 var claims = new[]
                 {
-                    new Claim(ClaimTypes.Name, userQuery.UserId.ToString())
+                    new Claim(ClaimTypes.NameIdentifier, userQuery.UserId.ToString())
                 };
                 var secret = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(Environment.GetEnvironmentVariable("TOKEN_SECRET")));
                 var creds = new SigningCredentials(secret, SecurityAlgorithms.HmacSha256);
