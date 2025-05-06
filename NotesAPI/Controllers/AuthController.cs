@@ -1,9 +1,12 @@
-﻿using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using NotesAPI.Data;
 using NotesAPI.Models;
 using BCrypt.Net;
+using Microsoft.IdentityModel.Tokens;
+using System.Security.Claims;
+using System.Text;
+using System.IdentityModel.Tokens.Jwt;
 
 namespace NotesAPI.Controllers
 {
@@ -56,14 +59,28 @@ namespace NotesAPI.Controllers
             var userQuery = await _context.Users.SingleOrDefaultAsync(u => u.Username == user.Username);
             if (userQuery == null)
             {
-                return BadRequest();
+                return Unauthorized();
             }
             bool isValid = BCrypt.Net.BCrypt.Verify(user.Password, userQuery.Password);
             if (isValid)
             {
-                return Ok();
+                var claims = new[]
+                {
+                    new Claim(ClaimTypes.Name, userQuery.UserId.ToString())
+                };
+                var secret = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(Environment.GetEnvironmentVariable("TOKEN_SECRET")));
+                var creds = new SigningCredentials(secret, SecurityAlgorithms.HmacSha256);
+                var token = new JwtSecurityToken(
+                    issuer: Environment.GetEnvironmentVariable("TOKEN_ISSUER"),
+                    audience: Environment.GetEnvironmentVariable("TOKEN_AUDIENCE"),
+                    claims: claims,
+                    expires: DateTime.Now.AddHours(1),
+                    signingCredentials: creds
+                );
+                var tokenResponse = new JwtSecurityTokenHandler().WriteToken(token);
+                return Ok(new {token= tokenResponse });
             }
-            return BadRequest();
+            return Unauthorized();
         }
     }
 }
