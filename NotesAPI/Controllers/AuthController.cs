@@ -9,6 +9,7 @@ using System.Security.Claims;
 using System.Text;
 using System.IdentityModel.Tokens.Jwt;
 using Microsoft.AspNetCore.Authorization;
+using System.ComponentModel.DataAnnotations;
 
 namespace NotesAPI.Controllers
 {
@@ -45,18 +46,26 @@ namespace NotesAPI.Controllers
         [HttpPost("register")]
         public async Task<IActionResult> PostRegister(RegisterRequest request)
         {
-            var userQuery = await _context.Users.FirstOrDefaultAsync(u=>u.Username == request.Username);
-            if (userQuery != null)
+            string normalizedUsername = request.Username.Trim().ToLower();
+            string normalizedEmail = request.Username.Trim().ToLower();
+            if(await _context.Users.AnyAsync(u => u.Username == normalizedUsername))
             {
-                return Conflict();
+                ModelState.AddModelError("Username", "The username is already in use.");
+            }
+            if(await _context.Users.AnyAsync(u => u.Email == normalizedEmail))
+            {
+                ModelState.AddModelError("Email", "The email is already in use.");
+            }
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState);
             }
             var passHash = BCrypt.Net.BCrypt.HashPassword(request.Password);
-            request.Password = passHash;
             var user = new User
             {
-                Username = request.Username,
-                Email = request.Email,
-                Password = request.Password,
+                Username = normalizedUsername,
+                Email = normalizedEmail,
+                Password = passHash,
             };
             _context.Users.Add(user);
             await _context.SaveChangesAsync();
@@ -66,10 +75,20 @@ namespace NotesAPI.Controllers
         [HttpPost("login")]
         public async Task<IActionResult> PostLogin(LoginRequest request)
         {
-            var userQuery = await _context.Users.SingleOrDefaultAsync(u => u.Username == request.Username);
+            string identifier = request.LoginIdentifier.Trim().ToLower();
+            bool isEmail= new EmailAddressAttribute().IsValid(identifier);
+            var userQuery = await _context.Users.SingleOrDefaultAsync(u =>
+            isEmail
+                ? u.Email.ToLower() == identifier
+                : u.Username.ToLower() == identifier
+            );
             if (userQuery == null)
             {
                 return Unauthorized();
+            }
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState);
             }
             bool isValid = BCrypt.Net.BCrypt.Verify(request.Password, userQuery.Password);
             if (isValid)
