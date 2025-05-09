@@ -23,31 +23,11 @@ namespace NotesAPI.Controllers
             _context = context;
         }
 
-        [Authorize]
-        [HttpGet]
-        public async Task<IActionResult> GetUsers()
-        {
-            var users=await _context.Users.ToListAsync();
-            return Ok(users);
-        }
-
-        [Authorize]
-        [HttpGet("{id}")]
-        public async Task<IActionResult> GetUser(int id)
-        {
-            var user = await _context.Users.FindAsync(id);
-            if (user == null)
-            {
-                return NotFound();
-            }
-            return Ok(user);
-        }
-
         [HttpPost("register")]
         public async Task<IActionResult> PostRegister(RegisterRequest request)
         {
             string normalizedUsername = request.Username.Trim().ToLower();
-            string normalizedEmail = request.Username.Trim().ToLower();
+            string normalizedEmail = request.Email.Trim().ToLower();
             if(await _context.Users.AnyAsync(u => u.Username == normalizedUsername))
             {
                 ModelState.AddModelError("Username", "The username is already in use.");
@@ -82,7 +62,7 @@ namespace NotesAPI.Controllers
                 ? u.Email.ToLower() == identifier
                 : u.Username.ToLower() == identifier
             );
-            if (userQuery == null)
+            if (userQuery == null || !BCrypt.Net.BCrypt.Verify(request.Password, userQuery.Password))
             {
                 return Unauthorized();
             }
@@ -90,26 +70,21 @@ namespace NotesAPI.Controllers
             {
                 return BadRequest(ModelState);
             }
-            bool isValid = BCrypt.Net.BCrypt.Verify(request.Password, userQuery.Password);
-            if (isValid)
+            var claims = new[]
             {
-                var claims = new[]
-                {
-                    new Claim(ClaimTypes.NameIdentifier, userQuery.UserId.ToString())
-                };
-                var secret = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(Environment.GetEnvironmentVariable("TOKEN_SECRET")));
-                var creds = new SigningCredentials(secret, SecurityAlgorithms.HmacSha256);
-                var token = new JwtSecurityToken(
-                    issuer: Environment.GetEnvironmentVariable("TOKEN_ISSUER"),
-                    audience: Environment.GetEnvironmentVariable("TOKEN_AUDIENCE"),
-                    claims: claims,
-                    expires: DateTime.Now.AddHours(1),
-                    signingCredentials: creds
-                );
-                var tokenResponse = new JwtSecurityTokenHandler().WriteToken(token);
-                return Ok(new {token= tokenResponse });
-            }
-            return Unauthorized();
+                new Claim(ClaimTypes.NameIdentifier, userQuery.UserId.ToString())
+            };
+            var secret = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(Environment.GetEnvironmentVariable("TOKEN_SECRET")));
+            var creds = new SigningCredentials(secret, SecurityAlgorithms.HmacSha256);
+            var token = new JwtSecurityToken(
+                issuer: Environment.GetEnvironmentVariable("TOKEN_ISSUER"),
+                audience: Environment.GetEnvironmentVariable("TOKEN_AUDIENCE"),
+                claims: claims,
+                expires: DateTime.UtcNow.AddHours(1),
+                signingCredentials: creds
+            );
+            var tokenResponse = new JwtSecurityTokenHandler().WriteToken(token);
+            return Ok(new {token= tokenResponse });
         }
     }
 }
