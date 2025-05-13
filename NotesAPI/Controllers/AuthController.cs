@@ -26,19 +26,30 @@ namespace NotesAPI.Controllers
         [HttpPost("register")]
         public async Task<IActionResult> PostRegister(RegisterRequest request)
         {
+            if (!ModelState.IsValid)
+            {
+                var errors = ModelState
+                    .Where(kvp => kvp.Value.Errors.Count > 0)
+                    .ToDictionary(
+                        kvp => kvp.Key.ToLowerInvariant(),
+                        kvp => kvp.Value.Errors.Select(e => e.ErrorMessage).ToArray()
+                    );
+                return BadRequest(errors);
+            }
             string normalizedUsername = request.Username.Trim().ToLower();
             string normalizedEmail = request.Email.Trim().ToLower();
+            var conflicts = new Dictionary<string, string>();
             if(await _context.Users.AnyAsync(u => u.Username == normalizedUsername))
             {
-                ModelState.AddModelError("Username", "The username is already in use.");
+                conflicts.Add("username", "The username is already in use.");
             }
             if(await _context.Users.AnyAsync(u => u.Email == normalizedEmail))
             {
-                ModelState.AddModelError("Email", "The email is already in use.");
+                conflicts.Add("email", "The email is already in use.");
             }
-            if (!ModelState.IsValid)
+            if (conflicts.Any())
             {
-                return BadRequest(ModelState);
+                return Conflict(conflicts);
             }
             var passHash = BCrypt.Net.BCrypt.HashPassword(request.Password);
             var user = new User
@@ -55,6 +66,16 @@ namespace NotesAPI.Controllers
         [HttpPost("login")]
         public async Task<IActionResult> PostLogin(LoginRequest request)
         {
+            if (!ModelState.IsValid)
+            {
+                var errors = ModelState
+                    .Where(kvp => kvp.Value.Errors.Count > 0)
+                    .ToDictionary(
+                        kvp => kvp.Key.ToLowerInvariant(),
+                        kvp => kvp.Value.Errors.Select(e => e.ErrorMessage).ToArray()
+                    );
+                return BadRequest(errors);
+            }
             string identifier = request.LoginIdentifier.Trim().ToLower();
             bool isEmail= new EmailAddressAttribute().IsValid(identifier);
             var userQuery = await _context.Users.SingleOrDefaultAsync(u =>
@@ -65,10 +86,6 @@ namespace NotesAPI.Controllers
             if (userQuery == null || !BCrypt.Net.BCrypt.Verify(request.Password, userQuery.Password))
             {
                 return Unauthorized();
-            }
-            if (!ModelState.IsValid)
-            {
-                return BadRequest(ModelState);
             }
             var claims = new[]
             {
