@@ -10,6 +10,7 @@ using System.Text;
 using System.IdentityModel.Tokens.Jwt;
 using Microsoft.AspNetCore.Authorization;
 using System.ComponentModel.DataAnnotations;
+using System.Data.Common;
 
 namespace NotesAPI.Controllers
 {
@@ -18,9 +19,11 @@ namespace NotesAPI.Controllers
     public class AuthController : ControllerBase
     {
         private readonly NoteContext _context;
-        public AuthController(NoteContext context)
+        private readonly ILogger<AuthController> _logger;
+        public AuthController(NoteContext context, ILogger<AuthController> logger)
         {
             _context = context;
+            _logger = logger;
         }
 
         [HttpPost("register")]
@@ -36,31 +39,44 @@ namespace NotesAPI.Controllers
                     );
                 return BadRequest(errors);
             }
-            string normalizedUsername = request.Username.Trim().ToLower();
-            string normalizedEmail = request.Email.Trim().ToLower();
-            var conflicts = new Dictionary<string, string>();
-            if(await _context.Users.AnyAsync(u => u.Username == normalizedUsername))
+            try
             {
-                conflicts.Add("username", "The username is already in use.");
+                string normalizedUsername = request.Username.Trim().ToLower();
+                string normalizedEmail = request.Email.Trim().ToLower();
+                var conflicts = new Dictionary<string, string>();
+                if (await _context.Users.AnyAsync(u => u.Username == normalizedUsername))
+                {
+                    conflicts.Add("username", "The username is already in use.");
+                }
+                if (await _context.Users.AnyAsync(u => u.Email == normalizedEmail))
+                {
+                    conflicts.Add("email", "The email is already in use.");
+                }
+                if (conflicts.Any())
+                {
+                    return Conflict(conflicts);
+                }
+                var passHash = BCrypt.Net.BCrypt.HashPassword(request.Password);
+                var user = new User
+                {
+                    Username = normalizedUsername,
+                    Email = normalizedEmail,
+                    Password = passHash,
+                };
+                _context.Users.Add(user);
+                await _context.SaveChangesAsync();
+                return Ok();
             }
-            if(await _context.Users.AnyAsync(u => u.Email == normalizedEmail))
+            catch (DbException ex)
             {
-                conflicts.Add("email", "The email is already in use.");
+                _logger.LogError(ex, "Database error");
+                return StatusCode(500, new{ message ="Internal database error."});
             }
-            if (conflicts.Any())
+            catch (Exception ex)
             {
-                return Conflict(conflicts);
+                _logger.LogError(ex,"Server error");
+                return StatusCode(500, new {message= "Internal server error."});
             }
-            var passHash = BCrypt.Net.BCrypt.HashPassword(request.Password);
-            var user = new User
-            {
-                Username = normalizedUsername,
-                Email = normalizedEmail,
-                Password = passHash,
-            };
-            _context.Users.Add(user);
-            await _context.SaveChangesAsync();
-            return Ok();
         }
 
         [HttpPost("login")]
@@ -76,32 +92,46 @@ namespace NotesAPI.Controllers
                     );
                 return BadRequest(errors);
             }
-            string identifier = request.LoginIdentifier.Trim().ToLower();
-            bool isEmail= new EmailAddressAttribute().IsValid(identifier);
-            var userQuery = await _context.Users.SingleOrDefaultAsync(u =>
-            isEmail
-                ? u.Email.ToLower() == identifier
-                : u.Username.ToLower() == identifier
-            );
-            if (userQuery == null || !BCrypt.Net.BCrypt.Verify(request.Password, userQuery.Password))
+            try
             {
-                return Unauthorized();
+                string identifier = request.LoginIdentifier.Trim().ToLower();
+                bool isEmail = new EmailAddressAttribute().IsValid(identifier);
+                var userQuery = await _context.Users.SingleOrDefaultAsync(u =>
+                isEmail
+                    ? u.Email.ToLower() == identifier
+                    : u.Username.ToLower() == identifier
+                );
+                if (userQuery == null || !BCrypt.Net.BCrypt.Verify(request.Password, userQuery.Password))
+                {
+                    return Unauthorized();
+                }
+                var claims = new[]
+                {
+                    new Claim(ClaimTypes.NameIdentifier, userQuery.UserId.ToString())
+                };
+                var secret = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(Environment.GetEnvironmentVariable("TOKEN_SECRET")));
+                var creds = new SigningCredentials(secret, SecurityAlgorithms.HmacSha256);
+                var token = new JwtSecurityToken(
+                    issuer: Environment.GetEnvironmentVariable("TOKEN_ISSUER"),
+                    audience: Environment.GetEnvironmentVariable("TOKEN_AUDIENCE"),
+                    claims: claims,
+                    expires: DateTime.UtcNow.AddHours(1),
+                    signingCredentials: creds
+                );
+                var tokenResponse = new JwtSecurityTokenHandler().WriteToken(token);
+                return Ok(new { token = tokenResponse });
             }
-            var claims = new[]
+            catch (DbException ex)
             {
-                new Claim(ClaimTypes.NameIdentifier, userQuery.UserId.ToString())
-            };
-            var secret = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(Environment.GetEnvironmentVariable("TOKEN_SECRET")));
-            var creds = new SigningCredentials(secret, SecurityAlgorithms.HmacSha256);
-            var token = new JwtSecurityToken(
-                issuer: Environment.GetEnvironmentVariable("TOKEN_ISSUER"),
-                audience: Environment.GetEnvironmentVariable("TOKEN_AUDIENCE"),
-                claims: claims,
-                expires: DateTime.UtcNow.AddHours(1),
-                signingCredentials: creds
-            );
-            var tokenResponse = new JwtSecurityTokenHandler().WriteToken(token);
-            return Ok(new {token= tokenResponse });
+                _logger.LogError(ex, "Database error");
+                return StatusCode(500, new { message = "Internal database error." });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Server error");
+                return StatusCode(500, new { message = "Internal server error." });
+            }
+            
         }
     }
 }
