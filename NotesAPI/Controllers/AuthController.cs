@@ -10,7 +10,6 @@ using System.Text;
 using System.IdentityModel.Tokens.Jwt;
 using Microsoft.AspNetCore.Authorization;
 using System.ComponentModel.DataAnnotations;
-using System.Data.Common;
 
 namespace NotesAPI.Controllers
 {
@@ -31,13 +30,7 @@ namespace NotesAPI.Controllers
         {
             if (!ModelState.IsValid)
             {
-                var errors = ModelState
-                    .Where(kvp => kvp.Value.Errors.Count > 0)
-                    .ToDictionary(
-                        kvp => kvp.Key.ToLowerInvariant(),
-                        kvp => kvp.Value.Errors.Select(e => e.ErrorMessage).ToArray()
-                    );
-                return BadRequest(errors);
+                return BadRequest(ModelState);
             }
             try
             {
@@ -67,7 +60,7 @@ namespace NotesAPI.Controllers
                 await _context.SaveChangesAsync();
                 return Ok();
             }
-            catch (DbException ex)
+            catch (DbUpdateException ex)
             {
                 _logger.LogError(ex, "Database error");
                 return StatusCode(500, new{ message ="Internal database error."});
@@ -84,13 +77,7 @@ namespace NotesAPI.Controllers
         {
             if (!ModelState.IsValid)
             {
-                var errors = ModelState
-                    .Where(kvp => kvp.Value.Errors.Count > 0)
-                    .ToDictionary(
-                        kvp => kvp.Key.ToLowerInvariant(),
-                        kvp => kvp.Value.Errors.Select(e => e.ErrorMessage).ToArray()
-                    );
-                return BadRequest(errors);
+                return BadRequest(ModelState);
             }
             try
             {
@@ -121,7 +108,7 @@ namespace NotesAPI.Controllers
                 var tokenResponse = new JwtSecurityTokenHandler().WriteToken(token);
                 return Ok(new { token = tokenResponse });
             }
-            catch (DbException ex)
+            catch (DbUpdateException ex)
             {
                 _logger.LogError(ex, "Database error");
                 return StatusCode(500, new { message = "Internal database error." });
