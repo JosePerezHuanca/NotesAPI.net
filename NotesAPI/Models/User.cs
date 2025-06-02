@@ -18,5 +18,6 @@ namespace NotesAPI.Models
         [Required]
         [StringLength(250)]
         public string Password { get; set; }
+        public ICollection<Note> Notes { get; set; }
     }
 }
