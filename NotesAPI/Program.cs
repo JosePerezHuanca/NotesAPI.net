@@ -34,7 +34,12 @@ namespace NotesAPI
                     IssuerSigningKey= new SymmetricSecurityKey(Encoding.UTF8.GetBytes(Environment.GetEnvironmentVariable("TOKEN_SECRET")))
                 };
             });
-            builder.Services.AddControllers();
+            builder.Services.AddControllers()
+            //Lo siguiente es para que las respuestas json no muestren valores null como DateTime? UpdatedAtt
+            .AddJsonOptions(options =>
+            {
+                options.JsonSerializerOptions.DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull;
+            });
             builder.Services.Configure<ApiBehaviorOptions>(options =>
             {
                 options.SuppressModelStateInvalidFilter = true;
