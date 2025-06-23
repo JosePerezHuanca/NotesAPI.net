@@ -3,9 +3,12 @@ using Microsoft.EntityFrameworkCore;
 using NotesAPI.Data;
 using NotesAPI.Models;
 using NotesAPI.Dto;
+using Microsoft.AspNetCore.Authorization;
+using System.Security.Claims;
 
 namespace NotesAPI.Controllers
 {
+    [Authorize]
     [Route("[controller]")]
     [ApiController]
     public class NotesController : ControllerBase
@@ -23,7 +26,20 @@ namespace NotesAPI.Controllers
         {
             try
             {
-                var notes = await _context.Notes.ToListAsync();
+                int userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
+                var notes = await _context.Notes
+                    .Where(n => n.UserId == userId)
+                    .Include(n => n.User)
+                    .Select(n => new NoteResponse
+                    {
+                        Id = n.Id,
+                        Title = n.Title,
+                        Content = n.Content,
+                        Autor = n.User.Username,
+                        CreatedAt = n.CreatedAt,
+                        UpdatedAt = n.UpdatedAt
+                    })
+                .ToListAsync();
                 return Ok(notes);
             }
             catch (DbUpdateException ex)
@@ -43,7 +59,20 @@ namespace NotesAPI.Controllers
         {
             try
             {
-                var note = await _context.Notes.FindAsync(id);
+                int userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
+                var note = await _context.Notes
+                    .Include(n => n.User)
+                    .Where(n => n.Id == id && n.UserId == userId)
+                    .Select(n => new NoteResponse
+                    {
+                        Id = n.Id,
+                        Title = n.Title,
+                        Content = n.Content,
+                        Autor = n.User.Username,
+                        CreatedAt = n.CreatedAt,
+                        UpdatedAt = n.UpdatedAt
+                    })
+                .FirstOrDefaultAsync();
                 if (note == null)
                 {
                     return NotFound();
@@ -71,15 +100,31 @@ namespace NotesAPI.Controllers
             }
             try
             {
+                int userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
+                var user = await _context.Users.FindAsync(userId);
+                if (user == null)
+                {
+                    return Unauthorized();
+                }
                 var note = new Note
                 {
                     Title = noteDto.Title,
                     Content = noteDto.Content,
-                    CreatedAt = DateTime.UtcNow
+                    CreatedAt = DateTime.UtcNow,
+                    UserId=userId
                 };
                 _context.Notes.Add(note);
                 await _context.SaveChangesAsync();
-                return CreatedAtAction(nameof(GetNote), new { id = note.Id }, note);
+                var noteResponse = new NoteResponse
+                {
+                    Id = note.Id,
+                    Title = note.Title,
+                    Content = note.Content,
+                    Autor = user.Username,
+                    CreatedAt = note.CreatedAt,
+                    UpdatedAt = note.UpdatedAt
+                };
+                return CreatedAtAction(nameof(GetNote), new { id = note.Id }, noteResponse);
             }
             catch (DbUpdateException ex)
             {
@@ -102,14 +147,15 @@ namespace NotesAPI.Controllers
             }
             try
             {
-                var noteQuery = await _context.Notes.FindAsync(id);
-                if (noteQuery == null)
+                int userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
+                var note = await _context.Notes.FirstOrDefaultAsync(n => n.Id == id && n.UserId == userId);
+                if (note == null)
                 {
                     return NotFound();
                 }
-                noteQuery.Title = noteDto.Title;
-                noteQuery.Content = noteDto.Content;
-                noteQuery.UpdatedAt = DateTime.UtcNow;
+                note.Title = noteDto.Title;
+                note.Content = noteDto.Content;
+                note.UpdatedAt = DateTime.UtcNow;
                 await _context.SaveChangesAsync();
                 return NoContent();
             }
@@ -130,7 +176,8 @@ namespace NotesAPI.Controllers
         {
             try
             {
-                var note = await _context.Notes.FindAsync(id);
+                int userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
+                var note = await _context.Notes.FirstOrDefaultAsync(n => n.Id == id && n.UserId == userId);
                 if (note == null)
                 {
                     return NotFound();
