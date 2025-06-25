@@ -5,6 +5,7 @@ using NotesAPI.Models;
 using NotesAPI.Dto;
 using Microsoft.AspNetCore.Authorization;
 using System.Security.Claims;
+using AutoMapper;
 
 namespace NotesAPI.Controllers
 {
@@ -14,10 +15,12 @@ namespace NotesAPI.Controllers
     public class NotesController : ControllerBase
     {
         private readonly NoteContext _context;
+        private readonly IMapper _mapper;
         private readonly ILogger<NotesController> _logger;
-        public NotesController(NoteContext context, ILogger<NotesController> logger)
+        public NotesController(NoteContext context, IMapper mapper, ILogger<NotesController> logger)
         {
             _context = context;
+            _mapper = mapper;
             _logger = logger;
         }
 
@@ -30,17 +33,9 @@ namespace NotesAPI.Controllers
                 var notes = await _context.Notes
                     .Where(n => n.UserId == userId)
                     .Include(n => n.User)
-                    .Select(n => new NoteResponse
-                    {
-                        Id = n.Id,
-                        Title = n.Title,
-                        Content = n.Content,
-                        Autor = n.User.Username,
-                        CreatedAt = n.CreatedAt,
-                        UpdatedAt = n.UpdatedAt
-                    })
-                .ToListAsync();
-                return Ok(notes);
+                    .ToListAsync();
+                var notesResponse = _mapper.Map<List<NoteResponse>>(notes);
+                return Ok(notesResponse);
             }
             catch (DbUpdateException ex)
             {
@@ -63,21 +58,13 @@ namespace NotesAPI.Controllers
                 var note = await _context.Notes
                     .Include(n => n.User)
                     .Where(n => n.Id == id && n.UserId == userId)
-                    .Select(n => new NoteResponse
-                    {
-                        Id = n.Id,
-                        Title = n.Title,
-                        Content = n.Content,
-                        Autor = n.User.Username,
-                        CreatedAt = n.CreatedAt,
-                        UpdatedAt = n.UpdatedAt
-                    })
-                .FirstOrDefaultAsync();
+                    .FirstOrDefaultAsync();
                 if (note == null)
                 {
                     return NotFound();
                 }
-                return Ok(note);
+                var noteResponse = _mapper.Map<NoteResponse>(note);
+                return Ok(noteResponse);
             }
             catch (DbUpdateException ex)
             {
@@ -106,24 +93,14 @@ namespace NotesAPI.Controllers
                 {
                     return Unauthorized();
                 }
-                var note = new Note
-                {
-                    Title = noteDto.Title,
-                    Content = noteDto.Content,
-                    CreatedAt = DateTime.UtcNow,
-                    UserId=userId
-                };
+                var note = _mapper.Map<Note>(noteDto);
+                note.UserId = userId;
+                note.CreatedAt = DateTime.UtcNow;
                 _context.Notes.Add(note);
                 await _context.SaveChangesAsync();
-                var noteResponse = new NoteResponse
-                {
-                    Id = note.Id,
-                    Title = note.Title,
-                    Content = note.Content,
-                    Autor = user.Username,
-                    CreatedAt = note.CreatedAt,
-                    UpdatedAt = note.UpdatedAt
-                };
+                note = await _context.Notes.Include(n => n.User)
+                    .FirstOrDefaultAsync(n => n.Id == note.Id);
+                var noteResponse = _mapper.Map<NoteResponse>(note);
                 return CreatedAtAction(nameof(GetNote), new { id = note.Id }, noteResponse);
             }
             catch (DbUpdateException ex)
@@ -153,8 +130,7 @@ namespace NotesAPI.Controllers
                 {
                     return NotFound();
                 }
-                note.Title = noteDto.Title;
-                note.Content = noteDto.Content;
+                _mapper.Map(noteDto, note);
                 note.UpdatedAt = DateTime.UtcNow;
                 await _context.SaveChangesAsync();
                 return NoContent();
