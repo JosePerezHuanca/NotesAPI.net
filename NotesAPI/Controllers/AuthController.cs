@@ -10,6 +10,7 @@ using System.Text;
 using System.IdentityModel.Tokens.Jwt;
 using Microsoft.AspNetCore.Authorization;
 using System.ComponentModel.DataAnnotations;
+using AutoMapper;
 
 namespace NotesAPI.Controllers
 {
@@ -18,10 +19,12 @@ namespace NotesAPI.Controllers
     public class AuthController : ControllerBase
     {
         private readonly NoteContext _context;
+        private readonly IMapper _mapper;
         private readonly ILogger<AuthController> _logger;
-        public AuthController(NoteContext context, ILogger<AuthController> logger)
+        public AuthController(NoteContext context, IMapper mapper, ILogger<AuthController> logger)
         {
             _context = context;
+            _mapper = mapper;
             _logger = logger;
         }
 
@@ -50,12 +53,10 @@ namespace NotesAPI.Controllers
                     return Conflict(conflicts);
                 }
                 var passHash = BCrypt.Net.BCrypt.HashPassword(request.Password);
-                var user = new User
-                {
-                    Username = normalizedUsername,
-                    Email = normalizedEmail,
-                    Password = passHash,
-                };
+                var user = _mapper.Map<User>(request);
+                user.Username = normalizedUsername;
+                user.Email = normalizedEmail;
+                user.Password = passHash;
                 _context.Users.Add(user);
                 await _context.SaveChangesAsync();
                 return Ok();

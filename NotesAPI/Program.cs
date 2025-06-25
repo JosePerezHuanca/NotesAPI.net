@@ -34,6 +34,7 @@ namespace NotesAPI
                     IssuerSigningKey= new SymmetricSecurityKey(Encoding.UTF8.GetBytes(Environment.GetEnvironmentVariable("TOKEN_SECRET")))
                 };
             });
+            builder.Services.AddAutoMapper(typeof(Program));
             builder.Services.AddControllers()
             //Lo siguiente es para que las respuestas json no muestren valores null como DateTime? UpdatedAtt
             .AddJsonOptions(options =>
