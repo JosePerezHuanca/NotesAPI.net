@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using NotesAPI.Data;
 using NotesAPI.Models;
 using NotesAPI.Dto;
+using NotesAPI.Response;
 using Microsoft.AspNetCore.Authorization;
 using System.Security.Claims;
 using AutoMapper;
@@ -24,6 +25,16 @@ namespace NotesAPI.Controllers
             _logger = logger;
         }
 
+        private Dictionary<string, List<string>> GetModelErrors()
+        {
+            return ModelState
+                .Where(ms => ms.Value.Errors.Count > 0)
+                .ToDictionary(
+                    kvp => kvp.Key,
+                    kvp => kvp.Value.Errors.Select(e => e.ErrorMessage).ToList()
+                );
+        }
+
         [HttpGet]
         public async Task<IActionResult> GetNotes()
         {
@@ -35,17 +46,17 @@ namespace NotesAPI.Controllers
                     .Include(n => n.User)
                     .ToListAsync();
                 var notesResponse = _mapper.Map<List<NoteResponse>>(notes);
-                return Ok(notesResponse);
+                return Ok(new ApiResponse<List<NoteResponse>>(success: true, status: 200, data: notesResponse));
             }
             catch (DbUpdateException ex)
             {
                 _logger.LogError(ex, "Database error");
-                return StatusCode(500, new { message = "Internal database error." });
+                return StatusCode(500, new ApiResponse<string>(success: false, status: 500, message: "Internal database error"));
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Server error");
-                return StatusCode(500, new { message = "Internal server error." });
+                return StatusCode(500, new ApiResponse<string>(success: false, status: 500, message: "Internal server error"));
             }
         }
 
@@ -61,20 +72,20 @@ namespace NotesAPI.Controllers
                     .FirstOrDefaultAsync();
                 if (note == null)
                 {
-                    return NotFound();
+                    return NotFound(new ApiResponse<string>(success: false, status: 404, message: "Not found"));
                 }
                 var noteResponse = _mapper.Map<NoteResponse>(note);
-                return Ok(noteResponse);
+                return Ok(new ApiResponse<NoteResponse>(success: true, status: 200, data: noteResponse));
             }
             catch (DbUpdateException ex)
             {
                 _logger.LogError(ex, "Database error");
-                return StatusCode(500, new { message = "Internal database error." });
+                return StatusCode(500, new ApiResponse<string>(success: false, status: 500, message: "Internal database error"));
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Server error");
-                return StatusCode(500, new { message = "Internal server error." });
+                return StatusCode(500, new ApiResponse<string>(success: false, status: 500, message: "Internal server error"));
             }
         }
 
@@ -83,7 +94,8 @@ namespace NotesAPI.Controllers
         {
             if (!ModelState.IsValid)
             {
-                return BadRequest(ModelState);
+                var errors = GetModelErrors();
+                return BadRequest(new ApiResponse<Dictionary<string, List<string>>>(success: false, status: 400, errors: errors));
             }
             try
             {
@@ -91,7 +103,7 @@ namespace NotesAPI.Controllers
                 var user = await _context.Users.FindAsync(userId);
                 if (user == null)
                 {
-                    return Unauthorized();
+                    return Unauthorized(new ApiResponse<string>(success: false, status: 401, message: "Unauthorized"));
                 }
                 var note = _mapper.Map<Note>(noteDto);
                 note.UserId = userId;
@@ -101,17 +113,17 @@ namespace NotesAPI.Controllers
                 note = await _context.Notes.Include(n => n.User)
                     .FirstOrDefaultAsync(n => n.Id == note.Id);
                 var noteResponse = _mapper.Map<NoteResponse>(note);
-                return CreatedAtAction(nameof(GetNote), new { id = note.Id }, noteResponse);
+                return CreatedAtAction(nameof(GetNote), new { id = note.Id }, new ApiResponse<NoteResponse>(success: true, status: 201, data: noteResponse));
             }
             catch (DbUpdateException ex)
             {
                 _logger.LogError(ex, "Database error");
-                return StatusCode(500, new { message = "Internal database error." });
+                return StatusCode(500, new ApiResponse<string>(success: false, status: 500, message: "Internal database error"));
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Server error");
-                return StatusCode(500, new { message = "Internal server error." });
+                return StatusCode(500, new ApiResponse<string>(success: false, status: 500, message: "Internal server error"));
             }
         }
 
@@ -120,7 +132,8 @@ namespace NotesAPI.Controllers
         {
             if (!ModelState.IsValid)
             {
-                return BadRequest(ModelState);
+                var errors = GetModelErrors();
+                return BadRequest(new ApiResponse<Dictionary<string, List<string>>>(success: false, status: 400, errors: errors));
             }
             try
             {
@@ -128,7 +141,7 @@ namespace NotesAPI.Controllers
                 var note = await _context.Notes.FirstOrDefaultAsync(n => n.Id == id && n.UserId == userId);
                 if (note == null)
                 {
-                    return NotFound();
+                    return NotFound(new ApiResponse<string>(success: false, status: 404, message: "Not found"));
                 }
                 _mapper.Map(noteDto, note);
                 note.UpdatedAt = DateTime.UtcNow;
@@ -138,12 +151,12 @@ namespace NotesAPI.Controllers
             catch (DbUpdateException ex)
             {
                 _logger.LogError(ex, "Database error");
-                return StatusCode(500, new { message = "Internal database error." });
+                return StatusCode(500, new ApiResponse<string>(success: false, status: 500, message: "Internal database error"));
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Server error");
-                return StatusCode(500, new { message = "Internal server error." });
+                return StatusCode(500, new ApiResponse<string>(success: false, status: 500, message: "Internal server error"));
             }
         }
 
@@ -156,7 +169,7 @@ namespace NotesAPI.Controllers
                 var note = await _context.Notes.FirstOrDefaultAsync(n => n.Id == id && n.UserId == userId);
                 if (note == null)
                 {
-                    return NotFound();
+                    return NotFound(new ApiResponse<string>(success: false, status: 404, message: "Not found"));
                 }
                 _context.Notes.Remove(note);
                 await _context.SaveChangesAsync();
@@ -165,12 +178,12 @@ namespace NotesAPI.Controllers
             catch (DbUpdateException ex)
             {
                 _logger.LogError(ex, "Database error");
-                return StatusCode(500, new { message = "Internal database error." });
+                return StatusCode(500, new ApiResponse<string>(success: false, status: 500, message: "Internal database error"));
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Server error");
-                return StatusCode(500, new { message = "Internal server error." });
+                return StatusCode(500, new ApiResponse<string>(success: false, status: 500, message: "Internal server error"));
             }
         }
     }

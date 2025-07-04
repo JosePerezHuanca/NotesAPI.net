@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using NotesAPI.Data;
 using NotesAPI.Models;
 using NotesAPI.Dto;
+using NotesAPI.Response;
 using BCrypt.Net;
 using Microsoft.IdentityModel.Tokens;
 using System.Security.Claims;
@@ -28,29 +29,40 @@ namespace NotesAPI.Controllers
             _logger = logger;
         }
 
+        private Dictionary<string, List<string>> GetModelErrors()
+        {
+            return ModelState
+                .Where(ms => ms.Value.Errors.Count > 0)
+                .ToDictionary(
+                    kvp => kvp.Key,
+                    kvp => kvp.Value.Errors.Select(e => e.ErrorMessage).ToList()
+                );
+        }
+
         [HttpPost("register")]
         public async Task<IActionResult> PostRegister(RegisterRequest request)
         {
             if (!ModelState.IsValid)
             {
-                return BadRequest(ModelState);
+                var errors = GetModelErrors();
+                return BadRequest(new ApiResponse<Dictionary<string, List<string>>>(success: false, status: 400, errors: errors));
             }
             try
             {
                 string normalizedUsername = request.Username.Trim().ToLower();
                 string normalizedEmail = request.Email.Trim().ToLower();
-                var conflicts = new Dictionary<string, string>();
+                var conflicts = new Dictionary<string, List<string>>();
                 if (await _context.Users.AnyAsync(u => u.Username == normalizedUsername))
                 {
-                    conflicts.Add("username", "The username is already in use.");
+                    conflicts.Add("username", new List<string> { "The username is already in use."});
                 }
                 if (await _context.Users.AnyAsync(u => u.Email == normalizedEmail))
                 {
-                    conflicts.Add("email", "The email is already in use.");
+                    conflicts.Add("email", new List<string> { "The email is already in use." });
                 }
                 if (conflicts.Any())
                 {
-                    return Conflict(conflicts);
+                    return Conflict(new ApiResponse<Dictionary<string, List<string>>>(success: false, status: 409, errors: conflicts));
                 }
                 var passHash = BCrypt.Net.BCrypt.HashPassword(request.Password);
                 var user = _mapper.Map<User>(request);
@@ -59,17 +71,17 @@ namespace NotesAPI.Controllers
                 user.Password = passHash;
                 _context.Users.Add(user);
                 await _context.SaveChangesAsync();
-                return Ok();
+                return Ok(new ApiResponse<string>(success: true, status: 200, message: "User registered successfully"));
             }
             catch (DbUpdateException ex)
             {
                 _logger.LogError(ex, "Database error");
-                return StatusCode(500, new{ message ="Internal database error."});
+                return StatusCode(500, new ApiResponse<string>(success: false, status: 500, message: "Internal database error"));
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex,"Server error");
-                return StatusCode(500, new {message= "Internal server error."});
+                return StatusCode(500, new ApiResponse<string>(success: false, status: 500, message: "Internal server error"));
             }
         }
 
@@ -78,7 +90,8 @@ namespace NotesAPI.Controllers
         {
             if (!ModelState.IsValid)
             {
-                return BadRequest(ModelState);
+                var errors = GetModelErrors();
+                return BadRequest(new ApiResponse<Dictionary<string, List<string>>>(success: false, status: 400, errors: errors));
             }
             try
             {
@@ -91,7 +104,7 @@ namespace NotesAPI.Controllers
                 );
                 if (userQuery == null || !BCrypt.Net.BCrypt.Verify(request.Password, userQuery.Password))
                 {
-                    return Unauthorized();
+                    return Unauthorized(new ApiResponse<string>(success: false, status: 401, message: "Unauthorized"));
                 }
                 var claims = new[]
                 {
@@ -107,19 +120,18 @@ namespace NotesAPI.Controllers
                     signingCredentials: creds
                 );
                 var tokenResponse = new JwtSecurityTokenHandler().WriteToken(token);
-                return Ok(new { token = tokenResponse });
+                return Ok(new ApiResponse<string>(success: true, status: 200, token: tokenResponse));
             }
             catch (DbUpdateException ex)
             {
                 _logger.LogError(ex, "Database error");
-                return StatusCode(500, new { message = "Internal database error." });
+                return StatusCode(500, new ApiResponse<string>(success: false, status: 500, message: "Internal database error"));
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Server error");
-                return StatusCode(500, new { message = "Internal server error." });
+                return StatusCode(500, new ApiResponse<string>(success: false, status: 500, message: "Internal server error"));
             }
-            
         }
     }
 }
