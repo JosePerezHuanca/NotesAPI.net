@@ -18,7 +18,7 @@ namespace NotesAPI
             // Add services to the container.
             builder.Services.AddDbContext<NoteContext>(options =>
             {
-                options.UseSqlServer(Environment.GetEnvironmentVariable("CONNECTION_STRING"));
+                options.UseNpgsql(Environment.GetEnvironmentVariable("CONNECTION_STRING"));
             }
             );
             builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer(options =>
