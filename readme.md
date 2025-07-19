@@ -7,6 +7,7 @@ API REST para gestionar notas o apuntes con autenticación de usuarios.
 - C#
 - ASP.Net WebAPI
 - Entity Framework Core (EFCore)
+- PostgreSQL
 - .Net 8
 - BCrypt.net
 - JSONWebToken (jwt)
