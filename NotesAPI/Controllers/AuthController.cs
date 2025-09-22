@@ -1,6 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using NotesAPI.Data;
+using NotesAPI.Repository;
 using NotesAPI.Models;
 using NotesAPI.Dto;
 using NotesAPI.Response;
@@ -19,12 +19,12 @@ namespace NotesAPI.Controllers
     [ApiController]
     public class AuthController : ControllerBase
     {
-        private readonly NoteContext _context;
+        private readonly IUserRepository _userRepository;
         private readonly IMapper _mapper;
         private readonly ILogger<AuthController> _logger;
-        public AuthController(NoteContext context, IMapper mapper, ILogger<AuthController> logger)
+        public AuthController(IUserRepository userRepository, IMapper mapper, ILogger<AuthController> logger)
         {
-            _context = context;
+            _userRepository = userRepository;
             _mapper = mapper;
             _logger = logger;
         }
@@ -52,11 +52,11 @@ namespace NotesAPI.Controllers
                 string normalizedUsername = request.Username.Trim().ToLower();
                 string normalizedEmail = request.Email.Trim().ToLower();
                 var conflicts = new Dictionary<string, List<string>>();
-                if (await _context.Users.AnyAsync(u => u.Username == normalizedUsername))
+                if (await _userRepository.IsUsernameInUseAsync(normalizedUsername))
                 {
                     conflicts.Add("username", new List<string> { "The username is already in use."});
                 }
-                if (await _context.Users.AnyAsync(u => u.Email == normalizedEmail))
+                if (await _userRepository.IsEmailInUseAsync(normalizedEmail))
                 {
                     conflicts.Add("email", new List<string> { "The email is already in use." });
                 }
@@ -69,8 +69,7 @@ namespace NotesAPI.Controllers
                 user.Username = normalizedUsername;
                 user.Email = normalizedEmail;
                 user.Password = passHash;
-                _context.Users.Add(user);
-                await _context.SaveChangesAsync();
+                await _userRepository.AddUserAsync(user);
                 return Ok(new ApiResponse<string>(success: true, status: 200, message: "User registered successfully"));
             }
             catch (DbUpdateException ex)
@@ -96,12 +95,7 @@ namespace NotesAPI.Controllers
             try
             {
                 string identifier = request.LoginIdentifier.Trim().ToLower();
-                bool isEmail = new EmailAddressAttribute().IsValid(identifier);
-                var userQuery = await _context.Users.SingleOrDefaultAsync(u =>
-                isEmail
-                    ? u.Email.ToLower() == identifier
-                    : u.Username.ToLower() == identifier
-                );
+                var userQuery = await _userRepository.GetUserByUsernameOrEmailAsync(identifier);
                 if (userQuery == null || !BCrypt.Net.BCrypt.Verify(request.Password, userQuery.Password))
                 {
                     return Unauthorized(new ApiResponse<string>(success: false, status: 401, message: "Unauthorized"));
