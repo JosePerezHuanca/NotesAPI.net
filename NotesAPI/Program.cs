@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using Microsoft.AspNetCore.Mvc;
+using NotesAPI.Repository;
 
 namespace NotesAPI
 {
@@ -21,6 +22,7 @@ namespace NotesAPI
                 options.UseNpgsql(Environment.GetEnvironmentVariable("CONNECTION_STRING"));
             }
             );
+            builder.Services.AddScoped<IUserRepository, UserRepository>()
             builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer(options =>
             {
                 options.TokenValidationParameters = new TokenValidationParameters
