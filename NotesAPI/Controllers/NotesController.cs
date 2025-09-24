@@ -1,6 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using NotesAPI.Data;
+using NotesAPI.Repository;
 using NotesAPI.Models;
 using NotesAPI.Dto;
 using NotesAPI.Response;
@@ -15,12 +15,14 @@ namespace NotesAPI.Controllers
     [ApiController]
     public class NotesController : ControllerBase
     {
-        private readonly NoteContext _context;
+        private readonly INoteRepository _noteRepository;
+        private readonly IUserRepository _userRepository;
         private readonly IMapper _mapper;
         private readonly ILogger<NotesController> _logger;
-        public NotesController(NoteContext context, IMapper mapper, ILogger<NotesController> logger)
+        public NotesController(INoteRepository noteRepository, IUserRepository userRepository,IMapper mapper, ILogger<NotesController> logger)
         {
-            _context = context;
+            _noteRepository = noteRepository;
+            _userRepository = userRepository;
             _mapper = mapper;
             _logger = logger;
         }
@@ -41,10 +43,7 @@ namespace NotesAPI.Controllers
             try
             {
                 int userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
-                var notes = await _context.Notes
-                    .Where(n => n.UserId == userId)
-                    .Include(n => n.User)
-                    .ToListAsync();
+                var notes = await _noteRepository.GetNotesByUserIdAsync(userId);
                 var notesResponse = _mapper.Map<List<NoteResponse>>(notes);
                 return Ok(new ApiResponse<List<NoteResponse>>(success: true, status: 200, data: notesResponse));
             }
@@ -66,10 +65,7 @@ namespace NotesAPI.Controllers
             try
             {
                 int userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
-                var note = await _context.Notes
-                    .Include(n => n.User)
-                    .Where(n => n.Id == id && n.UserId == userId)
-                    .FirstOrDefaultAsync();
+                var note = await _noteRepository.GetNoteByIdAndUserIdAsync(id, userId);
                 if (note == null)
                 {
                     return NotFound(new ApiResponse<string>(success: false, status: 404, message: "Not found"));
@@ -100,7 +96,7 @@ namespace NotesAPI.Controllers
             try
             {
                 int userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
-                var user = await _context.Users.FindAsync(userId);
+                var user = await _userRepository.GetUserByIdAsync(userId);
                 if (user == null)
                 {
                     return Unauthorized(new ApiResponse<string>(success: false, status: 401, message: "Unauthorized"));
@@ -108,11 +104,8 @@ namespace NotesAPI.Controllers
                 var note = _mapper.Map<Note>(noteDto);
                 note.UserId = userId;
                 note.CreatedAt = DateTime.UtcNow;
-                _context.Notes.Add(note);
-                await _context.SaveChangesAsync();
-                note = await _context.Notes.Include(n => n.User)
-                    .FirstOrDefaultAsync(n => n.Id == note.Id);
-                var noteResponse = _mapper.Map<NoteResponse>(note);
+                var createdNote = await _noteRepository.AddNoteAsync(note);
+                var noteResponse = _mapper.Map<NoteResponse>(createdNote);
                 return CreatedAtAction(nameof(GetNote), new { id = note.Id }, new ApiResponse<NoteResponse>(success: true, status: 201, data: noteResponse));
             }
             catch (DbUpdateException ex)
@@ -138,14 +131,14 @@ namespace NotesAPI.Controllers
             try
             {
                 int userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
-                var note = await _context.Notes.FirstOrDefaultAsync(n => n.Id == id && n.UserId == userId);
+                var note = await _noteRepository.GetNoteByIdAndUserIdAsync(id, userId);
                 if (note == null)
                 {
                     return NotFound(new ApiResponse<string>(success: false, status: 404, message: "Not found"));
                 }
                 _mapper.Map(noteDto, note);
                 note.UpdatedAt = DateTime.UtcNow;
-                await _context.SaveChangesAsync();
+                await _noteRepository.UpdateNoteAsync(note);
                 return NoContent();
             }
             catch (DbUpdateException ex)
@@ -166,13 +159,12 @@ namespace NotesAPI.Controllers
             try
             {
                 int userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
-                var note = await _context.Notes.FirstOrDefaultAsync(n => n.Id == id && n.UserId == userId);
+                var note = await _noteRepository.GetNoteByIdAndUserIdAsync(id, userId);
                 if (note == null)
                 {
                     return NotFound(new ApiResponse<string>(success: false, status: 404, message: "Not found"));
                 }
-                _context.Notes.Remove(note);
-                await _context.SaveChangesAsync();
+                await _noteRepository.DeleteNoteAsync(note);
                 return NoContent();
             }
             catch (DbUpdateException ex)
