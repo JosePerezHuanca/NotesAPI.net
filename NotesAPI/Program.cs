@@ -22,7 +22,8 @@ namespace NotesAPI
                 options.UseNpgsql(Environment.GetEnvironmentVariable("CONNECTION_STRING"));
             }
             );
-            builder.Services.AddScoped<IUserRepository, UserRepository>()
+            builder.Services.AddScoped<IUserRepository, UserRepository>();
+            builder.Services.AddScoped<INoteRepository, NoteRepository>();
             builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer(options =>
             {
                 options.TokenValidationParameters = new TokenValidationParameters
