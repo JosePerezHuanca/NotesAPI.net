@@ -24,6 +24,11 @@ namespace NotesAPI.Repository
             );
         }
 
+        public async Task<User> GetUserByIdAsync(int id)
+        {
+            return await _context.Users.FindAsync(id);
+        }
+
         public async Task<bool> IsUsernameInUseAsync(string username)
         {
             return await _context.Users.AnyAsync(u => u.Username == username);
