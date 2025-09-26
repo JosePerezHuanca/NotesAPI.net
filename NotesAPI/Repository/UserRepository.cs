@@ -31,12 +31,12 @@ namespace NotesAPI.Repository
 
         public async Task<bool> IsUsernameInUseAsync(string username)
         {
-            return await _context.Users.AnyAsync(u => u.Username == username);
+            return await _context.Users.AnyAsync(u => u.Username.ToLower() == username.ToLower());
         }
 
         public async Task<bool> IsEmailInUseAsync(string email)
         {
-            return await _context.Users.AnyAsync(u => u.Email == email);
+            return await _context.Users.AnyAsync(u => u.Email.ToLower() == email.ToLower());
         }
 
         public async Task AddUserAsync(User user)
