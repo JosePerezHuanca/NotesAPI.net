@@ -6,6 +6,7 @@ using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using Microsoft.AspNetCore.Mvc;
 using NotesAPI.Repository;
+using NotesAPI.Services;
 
 namespace NotesAPI
 {
@@ -24,6 +25,7 @@ namespace NotesAPI
             );
             builder.Services.AddScoped<IUserRepository, UserRepository>();
             builder.Services.AddScoped<INoteRepository, NoteRepository>();
+            builder.Services.AddScoped<IAuthService, AuthService>();
             builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer(options =>
             {
                 options.TokenValidationParameters = new TokenValidationParameters
