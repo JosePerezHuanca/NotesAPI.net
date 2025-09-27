@@ -1,17 +1,7 @@
 ﻿using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using NotesAPI.Repository;
-using NotesAPI.Models;
 using NotesAPI.Dto;
 using NotesAPI.Response;
-using BCrypt.Net;
-using Microsoft.IdentityModel.Tokens;
-using System.Security.Claims;
-using System.Text;
-using System.IdentityModel.Tokens.Jwt;
-using Microsoft.AspNetCore.Authorization;
-using System.ComponentModel.DataAnnotations;
-using AutoMapper;
+using NotesAPI.Services;
 
 namespace NotesAPI.Controllers
 {
@@ -19,14 +9,10 @@ namespace NotesAPI.Controllers
     [ApiController]
     public class AuthController : ControllerBase
     {
-        private readonly IUserRepository _userRepository;
-        private readonly IMapper _mapper;
-        private readonly ILogger<AuthController> _logger;
-        public AuthController(IUserRepository userRepository, IMapper mapper, ILogger<AuthController> logger)
+        private readonly IAuthService _authService;
+        public AuthController(IAuthService authService)
         {
-            _userRepository = userRepository;
-            _mapper = mapper;
-            _logger = logger;
+            _authService = authService;
         }
 
         private Dictionary<string, List<string>> GetModelErrors()
@@ -47,41 +33,14 @@ namespace NotesAPI.Controllers
                 var errors = GetModelErrors();
                 return BadRequest(new ApiResponse<Dictionary<string, List<string>>>(success: false, status: 400, errors: errors));
             }
-            try
+            var result = await _authService.RegisterUserAsync(request);
+            return result.Status switch
             {
-                string normalizedUsername = request.Username.Trim().ToLower();
-                string normalizedEmail = request.Email.Trim().ToLower();
-                var conflicts = new Dictionary<string, List<string>>();
-                if (await _userRepository.IsUsernameInUseAsync(normalizedUsername))
-                {
-                    conflicts.Add("username", new List<string> { "The username is already in use."});
-                }
-                if (await _userRepository.IsEmailInUseAsync(normalizedEmail))
-                {
-                    conflicts.Add("email", new List<string> { "The email is already in use." });
-                }
-                if (conflicts.Any())
-                {
-                    return Conflict(new ApiResponse<Dictionary<string, List<string>>>(success: false, status: 409, errors: conflicts));
-                }
-                var passHash = BCrypt.Net.BCrypt.HashPassword(request.Password);
-                var user = _mapper.Map<User>(request);
-                user.Username = normalizedUsername;
-                user.Email = normalizedEmail;
-                user.Password = passHash;
-                await _userRepository.AddUserAsync(user);
-                return Ok(new ApiResponse<string>(success: true, status: 200, message: "User registered successfully"));
-            }
-            catch (DbUpdateException ex)
-            {
-                _logger.LogError(ex, "Database error");
-                return StatusCode(500, new ApiResponse<string>(success: false, status: 500, message: "Internal database error"));
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex,"Server error");
-                return StatusCode(500, new ApiResponse<string>(success: false, status: 500, message: "Internal server error"));
-            }
+                200 => Ok(result),
+                409 => Conflict(result),
+                500 => StatusCode(500, result),
+                _ => StatusCode(500, new ApiResponse<string>(success: false, status: 500, message: "Unexpected error"))
+            };
         }
 
         [HttpPost("login")]
@@ -92,40 +51,14 @@ namespace NotesAPI.Controllers
                 var errors = GetModelErrors();
                 return BadRequest(new ApiResponse<Dictionary<string, List<string>>>(success: false, status: 400, errors: errors));
             }
-            try
+            var result = await _authService.LoginUserAsync(request);
+            return result.Status switch
             {
-                string identifier = request.LoginIdentifier.Trim().ToLower();
-                var userQuery = await _userRepository.GetUserByUsernameOrEmailAsync(identifier);
-                if (userQuery == null || !BCrypt.Net.BCrypt.Verify(request.Password, userQuery.Password))
-                {
-                    return Unauthorized(new ApiResponse<string>(success: false, status: 401, message: "Unauthorized"));
-                }
-                var claims = new[]
-                {
-                    new Claim(ClaimTypes.NameIdentifier, userQuery.UserId.ToString())
-                };
-                var secret = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(Environment.GetEnvironmentVariable("TOKEN_SECRET")));
-                var creds = new SigningCredentials(secret, SecurityAlgorithms.HmacSha256);
-                var token = new JwtSecurityToken(
-                    issuer: Environment.GetEnvironmentVariable("TOKEN_ISSUER"),
-                    audience: Environment.GetEnvironmentVariable("TOKEN_AUDIENCE"),
-                    claims: claims,
-                    expires: DateTime.UtcNow.AddHours(1),
-                    signingCredentials: creds
-                );
-                var tokenResponse = new JwtSecurityTokenHandler().WriteToken(token);
-                return Ok(new ApiResponse<string>(success: true, status: 200, token: tokenResponse));
-            }
-            catch (DbUpdateException ex)
-            {
-                _logger.LogError(ex, "Database error");
-                return StatusCode(500, new ApiResponse<string>(success: false, status: 500, message: "Internal database error"));
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Server error");
-                return StatusCode(500, new ApiResponse<string>(success: false, status: 500, message: "Internal server error"));
-            }
+                200 => Ok(result),
+                401 => Unauthorized(result),
+                500 => StatusCode(500, result),
+                _ => StatusCode(500, new ApiResponse<string>(success: false, status: 500, message: "Unexpected error"))
+            };
         }
     }
 }
