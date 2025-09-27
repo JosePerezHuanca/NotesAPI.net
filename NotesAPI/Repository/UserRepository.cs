@@ -19,8 +19,8 @@ namespace NotesAPI.Repository
             bool isEmail = new EmailAddressAttribute().IsValid(identifier);
             return await _context.Users.SingleOrDefaultAsync(u =>
             isEmail
-                ? u.Email.ToLower() == identifier
-                : u.Username.ToLower() == identifier
+                ? u.Email == identifier
+                : u.Username == identifier
             );
         }
 
@@ -31,12 +31,12 @@ namespace NotesAPI.Repository
 
         public async Task<bool> IsUsernameInUseAsync(string username)
         {
-            return await _context.Users.AnyAsync(u => u.Username.ToLower() == username.ToLower());
+            return await _context.Users.AnyAsync(u => u.Username == username);
         }
 
         public async Task<bool> IsEmailInUseAsync(string email)
         {
-            return await _context.Users.AnyAsync(u => u.Email.ToLower() == email.ToLower());
+            return await _context.Users.AnyAsync(u => u.Email == email);
         }
 
         public async Task AddUserAsync(User user)
