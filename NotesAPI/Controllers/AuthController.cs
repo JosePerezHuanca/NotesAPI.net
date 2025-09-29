@@ -38,8 +38,7 @@ namespace NotesAPI.Controllers
             {
                 200 => Ok(result),
                 409 => Conflict(result),
-                500 => StatusCode(500, result),
-                _ => StatusCode(500, new ApiResponse<string>(success: false, status: 500, message: "Unexpected error"))
+                _ => StatusCode(500, result)
             };
         }
 
@@ -56,8 +55,7 @@ namespace NotesAPI.Controllers
             {
                 200 => Ok(result),
                 401 => Unauthorized(result),
-                500 => StatusCode(500, result),
-                _ => StatusCode(500, new ApiResponse<string>(success: false, status: 500, message: "Unexpected error"))
+                _ => StatusCode(500, result)
             };
         }
     }
