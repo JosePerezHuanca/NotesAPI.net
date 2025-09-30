@@ -19,4 +19,18 @@
             Errors = errors;
         }
     }
+
+    public class ApiResponse
+    {
+        public bool Success { get; set; }
+        public int Status { get; set; }
+        public string? Message { get; set; }
+
+        public ApiResponse(bool success, int status, string? message = null)
+        {
+            Success = success;
+            Status = status;
+            Message = message;
+        }
+    }
 }
