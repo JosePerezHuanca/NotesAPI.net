@@ -54,6 +54,7 @@ namespace NotesAPI
             // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
             builder.Services.AddEndpointsApiExplorer();
             builder.Services.AddSwaggerGen();
+            builder.WebHost.UseUrls("http://*:5172");
 
             var app = builder.Build();
 
@@ -68,6 +69,12 @@ namespace NotesAPI
 
 
             app.MapControllers();
+
+            using (var scope = app.Services.CreateScope())
+            {
+                var db = scope.ServiceProvider.GetRequiredService<NoteContext>();
+                db.Database.Migrate();
+            }
 
             app.Run();
         }
