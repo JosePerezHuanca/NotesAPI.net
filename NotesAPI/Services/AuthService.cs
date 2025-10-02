@@ -1,8 +1,6 @@
 ﻿using AutoMapper;
-using BCrypt.Net;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
-using NotesAPI.Controllers;
 using NotesAPI.Dto;
 using NotesAPI.Models;
 using NotesAPI.Repository;
@@ -16,11 +14,13 @@ namespace NotesAPI.Services
     public class AuthService : IAuthService
     {
         private readonly IUserRepository _userRepository;
+        private readonly INotificationService _notificationService;
         private readonly IMapper _mapper;
         private readonly ILogger<AuthService> _logger;
-        public AuthService(IUserRepository userRepository, IMapper mapper, ILogger<AuthService> logger)
+        public AuthService(IUserRepository userRepository,INotificationService notificationService ,IMapper mapper, ILogger<AuthService> logger)
         {
             _userRepository = userRepository;
+            _notificationService = notificationService;
             _mapper = mapper;
             _logger = logger;
         }
@@ -50,6 +50,7 @@ namespace NotesAPI.Services
                 user.Email = normalizedEmail;
                 user.Password = passHash;
                 await _userRepository.AddUserAsync(user);
+                await _notificationService.SendEmailAsync(user.Email, "Welcome to Notes App", $"Hello {user.Username},\n\nThank you for registering at Notes App!");
                 return new ApiResponse<string>(success: true, status: 200, message: "User registered successfully");
             }
             catch (DbUpdateException ex)

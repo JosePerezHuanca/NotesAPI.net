@@ -27,6 +27,7 @@ namespace NotesAPI
             builder.Services.AddScoped<INoteRepository, NoteRepository>();
             builder.Services.AddScoped<IAuthService, AuthService>();
             builder.Services.AddScoped<INoteService, NoteService>();
+            builder.Services.AddScoped<INotificationService, NotificationService>();
             builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer(options =>
             {
                 options.TokenValidationParameters = new TokenValidationParameters
