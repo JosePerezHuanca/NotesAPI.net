@@ -8,6 +8,7 @@ using NotesAPI.Response;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
+using NotesAPI.Services;
 
 namespace NotesAPI.Services
 {
@@ -50,7 +51,7 @@ namespace NotesAPI.Services
                 user.Email = normalizedEmail;
                 user.Password = passHash;
                 await _userRepository.AddUserAsync(user);
-                await _notificationService.SendEmailAsync(user.Email, "Welcome to Notes App", $"Hello {user.Username},\n\nThank you for registering at Notes App!");
+                _ = _notificationService.AddEmailToQueueAsync(user.Email, "Welcome to Notes App", $"Hello {user.Username},\n\nThank you for registering at Notes App!");
                 return new ApiResponse<string>(success: true, status: 200, message: "User registered successfully");
             }
             catch (DbUpdateException ex)
