@@ -7,6 +7,8 @@ using System.Text;
 using Microsoft.AspNetCore.Mvc;
 using NotesAPI.Repository;
 using NotesAPI.Services;
+using System.Threading.Channels;
+using NotesAPI.Email;
 
 namespace NotesAPI
 {
@@ -27,7 +29,11 @@ namespace NotesAPI
             builder.Services.AddScoped<INoteRepository, NoteRepository>();
             builder.Services.AddScoped<IAuthService, AuthService>();
             builder.Services.AddScoped<INoteService, NoteService>();
+            // Channel singleton
+            var emailChannel = Channel.CreateUnbounded<EmailRequest>();
+            builder.Services.AddSingleton(emailChannel);
             builder.Services.AddScoped<INotificationService, NotificationService>();
+            builder.Services.AddHostedService<EmailBackgroundService>();
             builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer(options =>
             {
                 options.TokenValidationParameters = new TokenValidationParameters
