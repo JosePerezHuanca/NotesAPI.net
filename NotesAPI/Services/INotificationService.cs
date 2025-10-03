@@ -2,6 +2,6 @@
 {
     public interface INotificationService
     {
-        Task SendEmailAsync(string to, string subject, string body);
+        Task AddEmailToQueueAsync(string to, string subject, string body);
     }
 }
